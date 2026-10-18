@@ -37,7 +37,7 @@ for i in range(N):
     x1[i + 1] = x1[i] + u[i] - y[i]
 
     # Second-integrator
-    x2[i + 1] = x2[i] + x1[i] - y[i]
+    x2[i + 1] = x2[i] + 0.5*x1[i] - y[i]
 
 # ===================  
 # Plot PDM
@@ -55,6 +55,7 @@ ax3 = fig.add_subplot(gs_3[:,:])
 M = 200
 
 ax1.step(t[:M] * 1e6, y[:M], where="post")
+ax1.plot(t[:M] * 1e6, u[:M])
 #ax1.set_xlim()
 #ax1.set_ylim()
 ax1.grid(ls='--')
