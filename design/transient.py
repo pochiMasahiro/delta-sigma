@@ -12,8 +12,8 @@ from scipy.ndimage import median_filter
 # ===================
 fs = 3.072e6
 fin = 1e3
-amplitude = 0.0499
-N = 65536
+amplitude = 0.05
+N = 262144
 
 # ===================
 # Loop parameter
@@ -34,30 +34,39 @@ u = np.ones(len(n))*amplitude
 # Dither random gen
 # ===================
 rng = np.random.default_rng(1234)
-sigma = 0.01
-dither = rng.normal(
-    loc=0.0,
-    scale = sigma,
-    size = N
-)
+#sigma = 0.01
+#dither = rng.normal(
+#    loc=0.0,
+#    scale = sigma,
+#    size = N
+#)
 
 
 # ===================
 # Second-order 1-bit delta-sigma modulator
 # ===================
-x1 = np.zeros(N + 1)
-x2 = np.zeros(N + 1)
-y = np.zeros(N)
+def dsm_sim(sigma):
+    dither = rng.normal(
+        loc=0.0,
+        scale = sigma,
+        size = N
+    )
 
-for i in range(N):
-    # 1-bit quantizer
-    y[i] = 1.0 if x2[i] + dither[i] >= 0 else -1.0
+    x1 = np.zeros(N + 1)
+    x2 = np.zeros(N + 1)
+    y = np.zeros(N)
 
-    # First integrator
-    x1[i + 1] = x1[i] + u[i] - y[i]
+    for i in range(N):
+        # 1-bit quantizer
+        y[i] = 1.0 if x2[i] + dither[i] >= 0 else -1.0
 
-    # Second-integrator
-    x2[i + 1] = x2[i] + A*x1[i] - B*y[i]
+        # First integrator
+        x1[i + 1] = x1[i] + u[i] - y[i]
+
+        # Second-integrator
+        x2[i + 1] = x2[i] + A*x1[i] - B*y[i]
+
+    return x1, x2, y
 
 # ===================
 # PSD calculation
@@ -78,6 +87,77 @@ def calculated_PSD(y):
     )
 
     return f, psd_db
+
+def calculate_inband_noise(y, bandwidth):
+    y = np.asarray(y, dtype=float)
+    Num = len(y)
+
+    y_ac = y - np.mean(y)
+
+    Y = np.fft.rfft(y_ac)
+    f = np.fft.rfftfreq(N, d=1/fs)
+
+    # One-sided power spectrum
+    power = np.abs(Y)**2 / N**2
+
+    if N % 2 == 0:
+        power[1:-1] *= 2
+    else:
+        power[1:] *= 2
+
+    band = (f > 0) & (f <= bandwidth)
+    noise_power = np.sum(power[band])
+
+    noise_dbfs = 10 * np.log10(
+        max(noise_power, 1e-30) / 0.5
+    )
+
+    return noise_power, noise_dbfs
+
+def calculate_tone_power(
+    y,
+    search_range = (11000, 13000)
+    nperseg = 65536
+):
+    f, psd = welch(
+        y,
+        fs = fs,
+        window = "hann",
+        nperseg = nperseg,
+        noverlap = nperseg/2,
+        detrend = "constant",
+        scaling = "density"
+    )
+
+    df = f[1] - f[0]
+    search = (
+        (f >= search_range[0]) &
+        (f <= search_range[1]))
+
+    idx = np.flatnonzero(search)
+    peak_idx = idx[np.argmax(psd[idx])]
+    peak_freq = f[peak_idx]
+
+    noise_region = (
+        (np.abs(f - peak_freq) >= 400) &
+        (np.abs(f - peak_freq) <= 1500)
+    )
+
+    noise_floor = np.median(psd[noise_region])
+
+
+
+
+# ===================
+# DSM simulation
+# ===================
+x1, x2, y = dsm_sim(0.00)
+p0, db0 = calculate_inband_noise(y, 20e3)
+print("Without Dither: {0:f}".format(db0))
+
+x1, x2, y = dsm_sim(0.05)
+p0, db0 = calculate_inband_noise(y, 20e3)
+print("With Dither: {0:f}".format(db0))
 
 # ===================
 # DC
