@@ -11,7 +11,7 @@ from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 # ===================
 fs = 3.072e6
 fin = 1e3
-amplitude = 0.5
+amplitude = 0.05
 N = 65536
 
 # ===================
@@ -26,7 +26,9 @@ B = 1.0
 n = np.arange(N)
 t = n/fs
 
-u = amplitude * np.sin(2*np.pi*fin*t)
+#u = amplitude * np.sin(2*np.pi*fin*t)
+u = np.ones(len(n))*amplitude
+
 
 # ===================
 # Second-order 1-bit delta-sigma modulator
