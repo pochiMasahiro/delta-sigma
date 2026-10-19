@@ -15,6 +15,12 @@ amplitude = 0.5
 N = 65536
 
 # ===================
+# Loop parameter
+# ===================
+A = 0.375
+B = 1.0
+
+# ===================
 # Input signal
 # ===================
 n = np.arange(N)
@@ -37,7 +43,7 @@ for i in range(N):
     x1[i + 1] = x1[i] + u[i] - y[i]
 
     # Second-integrator
-    x2[i + 1] = x2[i] + 0.5*x1[i] - y[i]
+    x2[i + 1] = x2[i] + A*x1[i] - B*y[i]
 
 # ===================  
 # Plot PDM
