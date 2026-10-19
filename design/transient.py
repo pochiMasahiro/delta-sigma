@@ -4,14 +4,15 @@ import csv
 import sys
 plt.style.use('ggplot')
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
-
+from scipy.signal import welch, find_peaks
+from scipy.ndimage import median_filter
 
 # ===================
 # Parameters
 # ===================
 fs = 3.072e6
 fin = 1e3
-amplitude = 0.05
+amplitude = 0.0499
 N = 65536
 
 # ===================
@@ -29,6 +30,17 @@ t = n/fs
 #u = amplitude * np.sin(2*np.pi*fin*t)
 u = np.ones(len(n))*amplitude
 
+# ===================
+# Dither random gen
+# ===================
+rng = np.random.default_rng(1234)
+sigma = 0.01
+dither = rng.normal(
+    loc=0.0,
+    scale = sigma,
+    size = N
+)
+
 
 # ===================
 # Second-order 1-bit delta-sigma modulator
@@ -39,13 +51,39 @@ y = np.zeros(N)
 
 for i in range(N):
     # 1-bit quantizer
-    y[i] = 1.0 if x2[i] >= 0 else -1.0
+    y[i] = 1.0 if x2[i] + dither[i] >= 0 else -1.0
 
     # First integrator
     x1[i + 1] = x1[i] + u[i] - y[i]
 
     # Second-integrator
     x2[i + 1] = x2[i] + A*x1[i] - B*y[i]
+
+# ===================
+# PSD calculation
+# ===================
+def calculated_PSD(y):
+    f, psd = welch(
+        y,
+        fs = fs,
+        window = "hann",
+        nperseg = 65536,
+        noverlap = 32768,
+        detrend = "constant",
+        scaling = "density"
+    )
+
+    psd_db = 10 * np.log10(
+        np.maximum(psd/0.5, 1e-30)
+    )
+
+    return f, psd_db
+
+# ===================
+# DC
+# ===================
+dc_output = np.mean(y)
+print("DC (mean): {0:f}".format(dc_output))
 
 # ===================  
 # Plot PDM
@@ -71,23 +109,27 @@ ax1.set_xlabel('Time [us]')
 ax1.set_ylabel('Amplitude [V]')
 ax1.set_title("PDM output")
 
-start = 4096
-data = y[start:]
+#start = 4096
+#data = y[start:]
+#
+#window = np.hanning(len(data))
+#Y = np.fft.rfft(data * window)
+#
+#freq = np.fft.rfftfreq(len(data), 1/fs)
+#
+#scale = np.sum(window) / 2
+#spectrum = np.abs(Y) / scale
+#spectrum[0] /= 2
+#
+#spectrum_dB = 20 * np.log10(
+#    np.maximum(spectrum, 1e-15)
+#)
 
-window = np.hanning(len(data))
-Y = np.fft.rfft(data * window)
+#start = 4096
+#data = y[start:]
+freq, psd_db = calculated_PSD(y)
 
-freq = np.fft.rfftfreq(len(data), 1/fs)
-
-scale = np.sum(window) / 2
-spectrum = np.abs(Y) / scale
-spectrum[0] /= 2
-
-spectrum_dB = 20 * np.log10(
-    np.maximum(spectrum, 1e-15)
-)
-
-ax2.plot(freq/1e3, spectrum_dB)
+ax2.plot(freq/1e3, psd_db)
 #ax2.set_xlim()
 #ax2.set_ylim()
 ax2.grid(ls='--')
@@ -108,6 +150,4 @@ ax3.set_title("Integrator internal states")
 fig.tight_layout()
 #plt.savefig('.png', format='png', dpi=300, bbox_inches='tight')
 plt.show()
-
-
 
