@@ -145,6 +145,37 @@ def calculate_tone_power(
 
     noise_floor = np.median(psd[noise_region])
 
+    prominence_db = 10*log10(
+        max(psd[peak_idx] / noise_floor, 1e-30)
+    )
+    
+    lo = max(1, peak_idx - 3)
+    hi = min(len(psd), peak_idx + 4)
+
+    peak_power = np.sum(psd[lo:hi]) * df
+
+    background_power = (hi - lo) * noise_floor * df
+
+    tone_power = max(
+        peak_power - background_power,
+        0.0
+    )
+
+    tone_dbfs = 10 * np.log10(
+        max(tone_power, 1e-30) / 0.5
+    )
+
+    return {
+        "frequency": peak_freq,
+        "tone_power": tone_power,
+        "tone_dbfs": tone_dbfs,
+        "prominence_db": prominence_db,
+        "bin_width": df
+    }
+
+
+
+
 
 
 
