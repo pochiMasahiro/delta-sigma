@@ -18,8 +18,8 @@ N = 262144
 # ===================
 # Loop parameter
 # ===================
-A = 0.375
-B = 1.0
+#A = 0.375
+#B = 1.0
 
 # ===================
 # Input signal
@@ -45,7 +45,7 @@ rng = np.random.default_rng(1234)
 # ===================
 # Second-order 1-bit delta-sigma modulator
 # ===================
-def dsm_sim(sigma):
+def dsm_sim(sigma, A, B):
     dither = rng.normal(
         loc=0.0,
         scale = sigma,
@@ -116,7 +116,7 @@ def calculate_inband_noise(y, bandwidth):
 
 def calculate_tone_power(
     y,
-    search_range = (11000, 13000)
+    search_range = (11000, 13000),
     nperseg = 65536
 ):
     f, psd = welch(
@@ -145,7 +145,7 @@ def calculate_tone_power(
 
     noise_floor = np.median(psd[noise_region])
 
-    prominence_db = 10*log10(
+    prominence_db = 10 * np.log10(
         max(psd[peak_idx] / noise_floor, 1e-30)
     )
     
@@ -173,92 +173,73 @@ def calculate_tone_power(
         "bin_width": df
     }
 
-
-
-
-
-
-
 # ===================
 # DSM simulation
 # ===================
-x1, x2, y = dsm_sim(0.00)
-p0, db0 = calculate_inband_noise(y, 20e3)
-print("Without Dither: {0:f}".format(db0))
 
-x1, x2, y = dsm_sim(0.05)
-p0, db0 = calculate_inband_noise(y, 20e3)
-print("With Dither: {0:f}".format(db0))
+def dsm_simulation(A, B):
+    x1, x2, y = dsm_sim(0.00, A, B)
+    p0, db0 = calculate_inband_noise(y, 20e3)
+    result = calculate_tone_power(y)
+    print("====================")
+    print("A: {0:f}".format(A))
+    print("B: {0:f}".format(B))
+    #print("NTF: {0:f}".format(
+    print("Inband noise without Dither: {0:f}".format(db0))
+    print("Tone Frequency: {0:f}".format(result["frequency"]))
+    print("Tone power: {0:f}".format(result["tone_power"]))
+    print("Tone level: {0:f}".format(result["tone_dbfs"]))
+    print("Peak prominence: {0:f}".format(result["prominence_db"]))
+    dc_output = np.mean(y)
+    print("DC (mean): {0:f}".format(dc_output))
+    print()
+    fig = plt.figure(figsize=(5,7))
+    gs_master = GridSpec(nrows=3, ncols=1, height_ratios=[1,1,1])
+    gs_1 = GridSpecFromSubplotSpec(nrows=1, ncols=1, subplot_spec=gs_master[0, 0])
+    gs_2 = GridSpecFromSubplotSpec(nrows=2, ncols=1, subplot_spec=gs_master[1, 0])
+    gs_3 = GridSpecFromSubplotSpec(nrows=3, ncols=1, subplot_spec=gs_master[2, 0])
+    ax1 = fig.add_subplot(gs_1[:,:])
+    ax2 = fig.add_subplot(gs_2[:,:])
+    ax3 = fig.add_subplot(gs_3[:,:])
 
-# ===================
-# DC
-# ===================
-dc_output = np.mean(y)
-print("DC (mean): {0:f}".format(dc_output))
+    M = 200
 
-# ===================  
-# Plot PDM
-# ===================
-
-fig = plt.figure(figsize=(5,7))
-gs_master = GridSpec(nrows=3, ncols=1, height_ratios=[1,1,1])
-gs_1 = GridSpecFromSubplotSpec(nrows=1, ncols=1, subplot_spec=gs_master[0, 0])
-gs_2 = GridSpecFromSubplotSpec(nrows=2, ncols=1, subplot_spec=gs_master[1, 0])
-gs_3 = GridSpecFromSubplotSpec(nrows=3, ncols=1, subplot_spec=gs_master[2, 0])
-ax1 = fig.add_subplot(gs_1[:,:])
-ax2 = fig.add_subplot(gs_2[:,:])
-ax3 = fig.add_subplot(gs_3[:,:])
-
-M = 200
-
-ax1.step(t[:M] * 1e6, y[:M], where="post")
-ax1.plot(t[:M] * 1e6, u[:M])
+    ax1.step(t[:M] * 1e6, y[:M], where="post")
+    ax1.plot(t[:M] * 1e6, u[:M])
 #ax1.set_xlim()
 #ax1.set_ylim()
-ax1.grid(ls='--')
-ax1.set_xlabel('Time [us]')
-ax1.set_ylabel('Amplitude [V]')
-ax1.set_title("PDM output")
+    ax1.grid(ls='--')
+    ax1.set_xlabel('Time [us]')
+    ax1.set_ylabel('Amplitude [V]')
+    ax1.set_title("PDM output")
 
-#start = 4096
-#data = y[start:]
-#
-#window = np.hanning(len(data))
-#Y = np.fft.rfft(data * window)
-#
-#freq = np.fft.rfftfreq(len(data), 1/fs)
-#
-#scale = np.sum(window) / 2
-#spectrum = np.abs(Y) / scale
-#spectrum[0] /= 2
-#
-#spectrum_dB = 20 * np.log10(
-#    np.maximum(spectrum, 1e-15)
-#)
+    freq, psd_db = calculated_PSD(y)
 
-#start = 4096
-#data = y[start:]
-freq, psd_db = calculated_PSD(y)
-
-ax2.plot(freq/1e3, psd_db)
+    ax2.plot(freq/1e3, psd_db)
 #ax2.set_xlim()
 #ax2.set_ylim()
-ax2.grid(ls='--')
-ax2.set_xlabel('Frequency [kHz]')
-ax2.set_ylabel('Amplitude [dBFS, peak-reference]')
-ax2.set_title("PDM Output Spectrum")
+    ax2.grid(ls='--')
+    ax2.set_xlabel('Frequency [kHz]')
+    ax2.set_ylabel('Amplitude [dBFS, peak-reference]')
+    ax2.set_title("PDM Output Spectrum")
 
-M = 2000
+    M = 2000
 
-ax3.plot(t[:M] * 1e6, x1[:M])
-ax3.plot(t[:M] * 1e6, x2[:M])
-ax3.set_xlim()
-ax3.set_ylim()
-ax3.grid(ls='--')
-ax3.set_xlabel('Time')
-ax3.set_title("Integrator internal states")
+    ax3.plot(t[:M] * 1e6, x1[:M])
+    ax3.plot(t[:M] * 1e6, x2[:M])
+    ax3.set_xlim()
+    ax3.set_ylim()
+    ax3.grid(ls='--')
+    ax3.set_xlabel('Time')
+    ax3.set_title("Integrator internal states")
 
-fig.tight_layout()
+    fig.tight_layout()
 #plt.savefig('.png', format='png', dpi=300, bbox_inches='tight')
-plt.show()
+    plt.show()
 
+if __name__ == "__main__":
+    dsm_simulation(0.3, 0.9)
+    dsm_simulation(0.35, 1)
+    dsm_simulation(0.4, 1)
+    dsm_simulation(0.45, 1)
+    dsm_simulation(0.5, 1)
