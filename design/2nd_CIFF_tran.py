@@ -11,9 +11,12 @@ from scipy.ndimage import median_filter
 # Parameters
 # ===================
 fs = 3.072e6
-fin = 1e3
-amplitude = 0.7
-N = 262144
+fin = 996.09375
+amplitude = 0.05
+
+N_FFT = 2**18
+N_transient = 8192
+N = N_FFT + N_transient
 
 # ===================
 # Loop parameter
@@ -89,8 +92,8 @@ def calculated_PSD(y):
         y,
         fs = fs,
         window = "hann",
-        nperseg = 65536,
-        noverlap = 32768,
+        nperseg = N_FFT,
+        noverlap = N_FFT/2,
         detrend = "constant",
         scaling = "density"
     )
@@ -205,6 +208,7 @@ def find_period(y, max_period=4096):
 def dsm_simulation(A, B):
     x1, x2, y, v = dsm_sim(0.00, A, B)
     p0, db0 = calculate_inband_noise(y, 20e3)
+    y = y[N_transient:]
     result = calculate_tone_power(y)
     print("====================")
     print("A: {0:f}".format(A))
