@@ -10,13 +10,16 @@ from scipy.ndimage import median_filter
 # ===================
 # Parameters
 # ===================
-fs = 3.072e6
-fin = 996.09375
-amplitude = 0.05
+fs = 12.288e6
+#fin = 996.09375
+amplitude = 0.5
 
 N_FFT = 2**18
 N_transient = 8192
 N = N_FFT + N_transient
+
+k = 85
+fin = k*fs/N_FFT
 
 # ===================
 # Loop parameter
@@ -30,8 +33,8 @@ N = N_FFT + N_transient
 n = np.arange(N)
 t = n/fs
 
-#u = amplitude * np.sin(2*np.pi*fin*t)
-u = np.ones(len(n))*amplitude
+u = amplitude * np.sin(2*np.pi*fin*t)
+#u = np.ones(len(n))*amplitude
 
 # ===================
 # Dither random gen
@@ -92,8 +95,8 @@ def calculated_PSD(y):
         y,
         fs = fs,
         window = "hann",
-        nperseg = N_FFT,
-        noverlap = N_FFT/2,
+        nperseg = 65536,
+        noverlap = 32768,
         detrend = "constant",
         scaling = "density"
     )
@@ -201,26 +204,86 @@ def find_period(y, max_period=4096):
             return period
     return None
 
+def calculate_sndr(y , bandwidth, tone_bin):
+    y = np.asarray(y, dtype=float)
+    Num = len(y)
+
+    y_ac = y - np.mean(y)
+    Y = np.fft.rfft(y_ac)
+    f = np.fft.rfftfreq(Num, d=1/fs)
+
+    power = np.abs(Y)**2 / Num**2
+
+    if Num % 2 == 0:
+        power[1:-1] *= 2
+    else:
+        power[1:] *= 2
+
+    band = (f > 0) & (f <= bandwidth)
+
+    if not band[tone_bin]:
+        raise ValueError("Fundamental is outside bandwidth")
+
+    signal_power = power[tone_bin]
+    noise_mask = band.copy()
+    noise_mask[tone_bin] = False
+
+    noise_distortion_power = np.sum(power[noise_mask])
+
+    sndr = 10 * np.log10(
+        signal_power / noise_distortion_power
+    )
+
+    signal_dbfs = 10 * np.log10(signal_power / 0.5)
+    noise_dbfs = 10 * np.log10(
+        noise_distortion_power / 0.5
+    )
+
+    enob = (sndr - 1.76) / 6.02
+
+    return{
+        "sndr": sndr,
+        "enob": enob,
+        "signal_dbfs": signal_dbfs,
+        "noise_dbfs": noise_dbfs,
+        "frequency": f,
+        "power": power
+    }
+
 # ===================
 # DSM simulation
 # ===================
 
 def dsm_simulation(A, B):
     x1, x2, y, v = dsm_sim(0.00, A, B)
-    p0, db0 = calculate_inband_noise(y, 20e3)
-    y = y[N_transient:]
-    result = calculate_tone_power(y)
-    print("====================")
-    print("A: {0:f}".format(A))
-    print("B: {0:f}".format(B))
-    #print("NTF: {0:f}".format(
-    print("Inband noise without Dither: {0:f}".format(db0))
-    print("Tone Frequency: {0:f}".format(result["frequency"]))
-    print("Tone power: {0:f}".format(result["tone_power"]))
-    print("Tone level: {0:f}".format(result["tone_dbfs"]))
-    print("Peak prominence: {0:f}".format(result["prominence_db"]))
-    dc_output = np.mean(y)
-    print("DC (mean): {0:f}".format(dc_output))
+    #p0, db0 = calculate_inband_noise(y, 20e3)
+    #y = y[N_transient:]
+    #result = calculate_tone_power(y)
+#    print("====================")
+#    print("A: {0:f}".format(A))
+#    print("B: {0:f}".format(B))
+#    #print("NTF: {0:f}".format(
+#    print("Inband noise without Dither: {0:f}".format(db0))
+#    print("Tone Frequency: {0:f}".format(result["frequency"]))
+#    print("Tone power: {0:f}".format(result["tone_power"]))
+#    print("Tone level: {0:f}".format(result["tone_dbfs"]))
+#    print("Peak prominence: {0:f}".format(result["prominence_db"]))
+#    dc_output = np.mean(y)
+#    print("DC (mean): {0:f}".format(dc_output))
+
+    
+    y_fft = y[N_transient:N_transient+N_FFT]
+    result = calculate_sndr(
+        y_fft,
+        bandwidth = 20e3,
+        tone_bin = k
+    )
+
+    print("===================================")
+    print(f"Signal : {result["signal_dbfs"]:.3f} dBFS")
+    print(f"Noise+D: {result["noise_dbfs"]:.3f} dBFS")
+    print(f"SNDR   : {result["sndr"]:.3f} dB")
+    print(f"ENOB   : {result["enob"]:.3f} bit")
 
     print()
     fig = plt.figure(figsize=(5,7))
@@ -243,7 +306,7 @@ def dsm_simulation(A, B):
     ax1.set_ylabel('Amplitude [V]')
     ax1.set_title("PDM output")
 
-    freq, psd_db = calculated_PSD(y)
+    freq, psd_db = calculated_PSD(y_fft)
 
     ax2.plot(freq/1e3, psd_db)
 #ax2.set_xlim()
