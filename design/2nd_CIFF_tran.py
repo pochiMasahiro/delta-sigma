@@ -18,7 +18,7 @@ N_FFT = 2**18
 N_transient = 8192
 N = N_FFT + N_transient
 
-k = 85
+k = 21
 fin = k*fs/N_FFT
 
 # ===================
@@ -286,49 +286,43 @@ def dsm_simulation(A, B):
     print(f"ENOB   : {result["enob"]:.3f} bit")
 
     print()
-    fig = plt.figure(figsize=(5,7))
-    gs_master = GridSpec(nrows=3, ncols=1, height_ratios=[1,1,1])
-    gs_1 = GridSpecFromSubplotSpec(nrows=1, ncols=1, subplot_spec=gs_master[0, 0])
-    gs_2 = GridSpecFromSubplotSpec(nrows=2, ncols=1, subplot_spec=gs_master[1, 0])
-    gs_3 = GridSpecFromSubplotSpec(nrows=3, ncols=1, subplot_spec=gs_master[2, 0])
-    ax1 = fig.add_subplot(gs_1[:,:])
-    ax2 = fig.add_subplot(gs_2[:,:])
-    ax3 = fig.add_subplot(gs_3[:,:])
-
-    M = 200
-
-    ax1.step(t[:M] * 1e6, y[:M], where="post")
-    ax1.plot(t[:M] * 1e6, u[:M])
-#ax1.set_xlim()
-#ax1.set_ylim()
-    ax1.grid(ls='--')
-    ax1.set_xlabel('Time [us]')
-    ax1.set_ylabel('Amplitude [V]')
-    ax1.set_title("PDM output")
-
-    freq, psd_db = calculated_PSD(y_fft)
-
-    ax2.plot(freq/1e3, psd_db)
-#ax2.set_xlim()
-#ax2.set_ylim()
-    ax2.grid(ls='--')
-    ax2.set_xlabel('Frequency [kHz]')
-    ax2.set_ylabel('PSD [dBFS/Hz]')
-    ax2.set_title("PDM Output Spectrum")
-
-    M = 2000
-
-    ax3.plot(t[:M] * 1e6, x1[:M])
-    ax3.plot(t[:M] * 1e6, x2[:M])
-    ax3.set_xlim()
-    ax3.set_ylim()
-    ax3.grid(ls='--')
-    ax3.set_xlabel('Time')
-    ax3.set_title("Integrator internal states")
-
-    fig.tight_layout()
-#plt.savefig('.png', format='png', dpi=300, bbox_inches='tight')
-    #plt.show()
+#    fig = plt.figure(figsize=(5,7))
+#    gs_master = GridSpec(nrows=3, ncols=1, height_ratios=[1,1,1])
+#    gs_1 = GridSpecFromSubplotSpec(nrows=1, ncols=1, subplot_spec=gs_master[0, 0])
+#    gs_2 = GridSpecFromSubplotSpec(nrows=2, ncols=1, subplot_spec=gs_master[1, 0])
+#    gs_3 = GridSpecFromSubplotSpec(nrows=3, ncols=1, subplot_spec=gs_master[2, 0])
+#    ax1 = fig.add_subplot(gs_1[:,:])
+#    ax2 = fig.add_subplot(gs_2[:,:])
+#    ax3 = fig.add_subplot(gs_3[:,:])
+#
+#    M = 200
+#
+#    ax1.step(t[:M] * 1e6, y[:M], where="post")
+#    ax1.plot(t[:M] * 1e6, u[:M])
+#    ax1.grid(ls='--')
+#    ax1.set_xlabel('Time [us]')
+#    ax1.set_ylabel('Amplitude [V]')
+#    ax1.set_title("PDM output")
+#
+#    freq, psd_db = calculated_PSD(y_fft)
+#
+#    ax2.plot(freq/1e3, psd_db)
+#    ax2.grid(ls='--')
+#    ax2.set_xlabel('Frequency [kHz]')
+#    ax2.set_ylabel('PSD [dBFS/Hz]')
+#    ax2.set_title("PDM Output Spectrum")
+#
+#    M = 2000
+#
+#    ax3.plot(t[:M] * 1e6, x1[:M])
+#    ax3.plot(t[:M] * 1e6, x2[:M])
+#    ax3.set_xlim()
+#    ax3.set_ylim()
+#    ax3.grid(ls='--')
+#    ax3.set_xlabel('Time')
+#    ax3.set_title("Integrator internal states")
+#
+#    fig.tight_layout()
 
     return result
 
@@ -343,23 +337,29 @@ if __name__ == "__main__":
             result = dsm_simulation(c1, c2)
             sndr[y, x] = result["sndr"]
 
+    idx = np.argmax(sndr)
+    coords = np.unravel_index(idx, sndr.shape)
+    print(f"Max SNDR: {sndr[coords]:.3f} dB")
+
     fig = plt.figure(figsize=(5,5))
-    gs_master = GridSpec(nrows=1, ncols=1)
+    gs_master = GridSpec(nrows=1, ncols=2, width_ratios=[10, 1])
     gs_1 = GridSpecFromSubplotSpec(nrows=1, ncols=1, subplot_spec=gs_master[0, 0])
-    #gs_2 = GridSpecFromSubplotSpec(nrows=1, ncols=2, subplot_spec=gs_master[0, 1])
+    gs_2 = GridSpecFromSubplotSpec(nrows=1, ncols=2, subplot_spec=gs_master[0, 1])
     #gs_3 = GridSpecFromSubplotSpec(nrows=1, ncols=3, subplot_spec=gs_master[0, 2])
     ax1 = fig.add_subplot(gs_1[:,:])
-    #ax2 = fig.add_subplot(gs_2[:,:])
+    ax2 = fig.add_subplot(gs_2[:,:])
     #ax3 = fig.add_subplot(gs_3[:,:])
 
-    ax1.contourf(c1_list, c2_list, sndr)
+    conf = ax1.contourf(c1_list, c2_list, sndr)
     ax1.set_xlim()
     ax1.set_ylim()
     ax1.grid(ls='--')
-    ax1.set_xlabel('')
-    ax1.set_ylabel('')
-    ax1.set_title("")
-    ax1.set_aspect("equal")
+    ax1.set_xlabel('C1')
+    ax1.set_ylabel('C2')
+    ax1.set_title("SNDR")
+    #ax1.set_aspect("equal")
+
+    fig.colorbar(conf, cax=ax2)
 
     fig.tight_layout()
     #plt.savefig('.png', format='png', dpi=300, bbox_inches='tight')
