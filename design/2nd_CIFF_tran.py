@@ -271,7 +271,6 @@ def dsm_simulation(A, B):
 #    dc_output = np.mean(y)
 #    print("DC (mean): {0:f}".format(dc_output))
 
-    
     y_fft = y[N_transient:N_transient+N_FFT]
     result = calculate_sndr(
         y_fft,
@@ -280,6 +279,7 @@ def dsm_simulation(A, B):
     )
 
     print("===================================")
+    print(f"C1: {A:.3f}, C2: {B:.3f}")
     print(f"Signal : {result["signal_dbfs"]:.3f} dBFS")
     print(f"Noise+D: {result["noise_dbfs"]:.3f} dBFS")
     print(f"SNDR   : {result["sndr"]:.3f} dB")
@@ -328,11 +328,39 @@ def dsm_simulation(A, B):
 
     fig.tight_layout()
 #plt.savefig('.png', format='png', dpi=300, bbox_inches='tight')
-    plt.show()
+    #plt.show()
+
+    return result
 
 if __name__ == "__main__":
-    dsm_simulation(1.0, 0.5)
-#    dsm_simulation(0.35, 1)
-#    dsm_simulation(0.4, 1)
-#    dsm_simulation(0.45, 1)
-#    dsm_simulation(0.5, 1)
+    c1_list = [0.8, 1.0, 1.2, 1.4, 1.6]
+    c2_list = [0.2, 0.4, 0.6, 0.8]
+    sndr = np.zeros((len(c2_list), len(c1_list)))
+    XX, YY = np.meshgrid(c1_list, c2_list)
+
+    for x, c1 in enumerate(c1_list):
+        for y, c2 in enumerate(c2_list):
+            result = dsm_simulation(c1, c2)
+            sndr[y, x] = result["sndr"]
+
+    fig = plt.figure(figsize=(5,5))
+    gs_master = GridSpec(nrows=1, ncols=1)
+    gs_1 = GridSpecFromSubplotSpec(nrows=1, ncols=1, subplot_spec=gs_master[0, 0])
+    #gs_2 = GridSpecFromSubplotSpec(nrows=1, ncols=2, subplot_spec=gs_master[0, 1])
+    #gs_3 = GridSpecFromSubplotSpec(nrows=1, ncols=3, subplot_spec=gs_master[0, 2])
+    ax1 = fig.add_subplot(gs_1[:,:])
+    #ax2 = fig.add_subplot(gs_2[:,:])
+    #ax3 = fig.add_subplot(gs_3[:,:])
+
+    ax1.contourf(c1_list, c2_list, sndr)
+    ax1.set_xlim()
+    ax1.set_ylim()
+    ax1.grid(ls='--')
+    ax1.set_xlabel('')
+    ax1.set_ylabel('')
+    ax1.set_title("")
+    ax1.set_aspect("equal")
+
+    fig.tight_layout()
+    #plt.savefig('.png', format='png', dpi=300, bbox_inches='tight')
+    plt.show()
