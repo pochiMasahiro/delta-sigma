@@ -51,7 +51,7 @@ rng = np.random.default_rng(1234)
 # ===================
 # Second-order 1-bit delta-sigma modulator
 # ===================
-def dsm_sim(sigma, c1, c2):
+def dsm_sim(sigma, c1, c2, a1, a2, b1, b2, e1, e2):
     dither = rng.normal(
         loc=0.0,
         scale = sigma,
@@ -71,10 +71,13 @@ def dsm_sim(sigma, c1, c2):
         y[i] = 1.0 if v[i] + dither[i] >= 0 else -1.0
 
         # First integrator
-        x1[i + 1] = x1[i] + u[i] - y[i]
+        x1t = a1*x1[i] + b1*(u[i] - y[i])
 
         # Second-integrator
-        x2[i + 1] = x2[i] + x1[i]
+        x2t = a2*x2[i] + b2*x1[i]
+
+        x1[i + 1] = x1[i] + e1 * (x1t - x1[i])
+        x2[i + 1] = x2[i] + e2 * (x2t - x2[i])
 
         if (
             not np.isfinite(x1[i+1])
@@ -254,8 +257,8 @@ def calculate_sndr(y , bandwidth, tone_bin):
 # DSM simulation
 # ===================
 
-def dsm_simulation(A, B):
-    x1, x2, y, v = dsm_sim(0.00, A, B)
+def dsm_simulation(c1, c2, a1, a2, b1, b2, e1, e2):
+    x1, x2, y, v = dsm_sim(0.00, c1, c2, a1, a2, b1, b2, e1, e2)
     #p0, db0 = calculate_inband_noise(y, 20e3)
     #y = y[N_transient:]
     #result = calculate_tone_power(y)
@@ -279,7 +282,9 @@ def dsm_simulation(A, B):
     )
 
     print("===================================")
-    print(f"C1: {A:.3f}, C2: {B:.3f}")
+    print(f"C1: {c1:.3f}, C2: {c2:.3f}")
+    print(f"a1: {a1:.3f}, b1: {b1:.3f}, e1: {e1:.3f}")
+    print(f"a2: {a2:.3f}, b2: {b2:.3f}, e2: {e2:.3f}")
     print(f"Signal : {result["signal_dbfs"]:.3f} dBFS")
     print(f"Noise+D: {result["noise_dbfs"]:.3f} dBFS")
     print(f"SNDR   : {result["sndr"]:.3f} dB")
@@ -329,20 +334,27 @@ def dsm_simulation(A, B):
 if __name__ == "__main__":
     c1_list = [0.8, 1.0, 1.2, 1.4, 1.6]
     c2_list = [0.2, 0.4, 0.6, 0.8]
-    sndr = np.zeros((len(c2_list), len(c1_list)))
-    XX, YY = np.meshgrid(c1_list, c2_list)
+    a1_list = [0.999999, 0.99999, 0.9999, 0.999, 0.99];
+    a2_list = [0.999999, 0.99999, 0.9999, 0.999, 0.99];
 
-    for x, c1 in enumerate(c1_list):
-        for y, c2 in enumerate(c2_list):
-            result = dsm_simulation(c1, c2)
+    sndr = np.zeros((len(a2_list), len(a1_list)))
+    enob = np.zeros((len(a2_list), len(a1_list)))
+    XX, YY = np.meshgrid(a1_list, a2_list)
+
+    for x, a1 in enumerate(a1_list):
+        for y, a2 in enumerate(a2_list):
+            # def dsm_sim(sigma, c1, c2, a1, a2, b1, b2, e1, e2):
+            result = dsm_simulation(1.0, 0.4, a1, a2, 1, 1, 1, 1)
             sndr[y, x] = result["sndr"]
+            enob[y, x] = result["enob"]
 
     idx = np.argmax(sndr)
     coords = np.unravel_index(idx, sndr.shape)
     print(f"Max SNDR: {sndr[coords]:.3f} dB")
 
-    fig = plt.figure(figsize=(5,5))
-    gs_master = GridSpec(nrows=1, ncols=2, width_ratios=[10, 1])
+
+    fig = plt.figure(figsize=(10, 5))
+    gs_master = GridSpec(nrows=1, ncols=2, width_ratios=[1, 1])
     gs_1 = GridSpecFromSubplotSpec(nrows=1, ncols=1, subplot_spec=gs_master[0, 0])
     gs_2 = GridSpecFromSubplotSpec(nrows=1, ncols=2, subplot_spec=gs_master[0, 1])
     #gs_3 = GridSpecFromSubplotSpec(nrows=1, ncols=3, subplot_spec=gs_master[0, 2])
@@ -350,16 +362,25 @@ if __name__ == "__main__":
     ax2 = fig.add_subplot(gs_2[:,:])
     #ax3 = fig.add_subplot(gs_3[:,:])
 
-    conf = ax1.contourf(c1_list, c2_list, sndr)
+    conf = ax1.contourf(XX, YY, sndr)
     ax1.set_xlim()
     ax1.set_ylim()
-    ax1.grid(ls='--')
+    #ax1.grid(ls='--')
     ax1.set_xlabel('C1')
     ax1.set_ylabel('C2')
     ax1.set_title("SNDR")
     #ax1.set_aspect("equal")
 
-    fig.colorbar(conf, cax=ax2)
+    conf = ax2.contourf(XX, YY, enob)
+    ax2.set_xlim()
+    ax2.set_ylim()
+    #ax2.grid(ls='--')
+    ax2.set_xlabel('C1')
+    ax2.set_ylabel('C2')
+    ax2.set_title("ENOB")
+
+
+    #fig.colorbar(conf, cax=ax2)
 
     fig.tight_layout()
     #plt.savefig('.png', format='png', dpi=300, bbox_inches='tight')
