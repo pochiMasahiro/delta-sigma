@@ -336,15 +336,18 @@ if __name__ == "__main__":
     c2_list = [0.2, 0.4, 0.6, 0.8]
     a1_list = [0.999999, 0.99999, 0.9999, 0.999, 0.99];
     a2_list = [0.999999, 0.99999, 0.9999, 0.999, 0.99];
+    e1_list = [1.0, 0.999999, 0.99999, 0.9999, 0.999, 0.99, 0.98, 0.95];
+    e2_list = [1.0, 0.999999, 0.99999, 0.9999, 0.999, 0.99, 0.98, 0.95];
+    
 
-    sndr = np.zeros((len(a2_list), len(a1_list)))
-    enob = np.zeros((len(a2_list), len(a1_list)))
-    XX, YY = np.meshgrid(a1_list, a2_list)
+    sndr = np.zeros((len(e2_list), len(e1_list)))
+    enob = np.zeros((len(e2_list), len(e1_list)))
+    XX, YY = np.meshgrid(e1_list, e2_list)
 
-    for x, a1 in enumerate(a1_list):
-        for y, a2 in enumerate(a2_list):
+    for x, e1 in enumerate(e1_list):
+        for y, e2 in enumerate(e2_list):
             # def dsm_sim(sigma, c1, c2, a1, a2, b1, b2, e1, e2):
-            result = dsm_simulation(1.0, 0.4, a1, a2, 1, 1, 1, 1)
+            result = dsm_simulation(1.0, 0.4, 1, 1, 1, 1, e1, e2)
             sndr[y, x] = result["sndr"]
             enob[y, x] = result["enob"]
 
